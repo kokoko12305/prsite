@@ -1,41 +1,32 @@
 from django.views.generic import TemplateView, DetailView
+from django_listing import *
+import django_listing
 
 from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse, HttpResponseRedirect, Http404
-from django.template import loader
+from django.views import generic
 from django.urls import reverse
 
 from .models import Choice, Question
 
-def index(request):
-    latest_question_list = Question.objects.order_by("-pub_date")[:5]
-    context = {"latest_question_list": latest_question_list}
-    return render(request, "polls/index.html", context)
 
-    # latest_question_list = Question.objects.order_by("-pub_date")[:5]
-    # template = loader.get_template("polls/index.html")
-    # context = {
-    #     "latest_question_list": latest_question_list,
-    # }
-    # return HttpResponse(template.render(context, request))
+class IndexView(generic.ListView):
+    template_name = "polls/index.html"
+    context_object_name = "latest_question_list"
 
-    # return HttpResponse("Hello, world. You're at the polls index.")
+    def get_queryset(self):
+        """Return the last five published questions."""
+        return Question.objects.order_by("-pub_date")[:5]
 
-def detail(request, question_id):
-    question = get_object_or_404(Question, pk=question_id)
-    return render(request, "polls/detail.html", {"question": question})
 
-    # try:
-    #     question = Question.objects.get(pk=question_id)
-    # except Question.DoesNotExist:
-    #     raise Http404("Question does not exist")
-    # return render(request, "polls/detail.html", {"question": question})
+class DetailView(generic.DetailView):
+    model = Question
+    template_name = "polls/detail.html"
 
-    # return HttpResponse("You're looking at question %s." % question_id)
 
-def results(request, question_id):
-    question = get_object_or_404(Question, pk=question_id)
-    return render(request, "polls/results.html", {"question": question})
+class ResultsView(generic.DetailView):
+    model = Question
+    template_name = "polls/results.html"
 
 
 def vote(request, question_id):
@@ -61,4 +52,80 @@ def vote(request, question_id):
         return HttpResponseRedirect(reverse("polls:results", args=(question.id,)))
     
     # return HttpResponse("You're voting on question %s." % question_id)
+
+# ################################################################################################################ #
+class SimpleListing(Listing):
+    # If no columns are specified, django_listing will auto-detect them
+    # based on data provided (list of dicts, list of lists, model, query set etc...
+    per_page = 10
+    
+class ToolbarSimpleListing(SimpleListing):
+    per_page = 8
+
+class ToolbarEmployeeDivListing(DivListing):
+    # override sorting choices (with tuples syntax)
+    toolbar_sortselect__choices=(('first_name','First name A-Z'),
+                                 ('-first_name','First name Z-A'),
+                                 ('age','Youngest first'),
+                                 ('-age','Oldest first'))
+    attrs = {'class':'div-striped div-hover div-bordered'}
+    per_page = 8
+
+class EmployeeThumbnailsListing(DivListing):
+    div_template_name = 'demo/thumbnails.html'
+    attrs = {'class':''}
+    # will add the 'thumbnail' class to the container
+    # means that one have to set 'div.row-container.thumbnail'
+    # in .css to modify the look
+    theme_div_row_container_class = 'thumbnail'
+    per_page = 16
+
+class ToolbarEmployeeThumbnailsListing(EmployeeThumbnailsListing):
+    per_page = 16
+    # override sorting choices (with one big string syntax)
+    toolbar_sortselect__choices=('first_name:First name A-Z,'
+                                 '-first_name:First name Z-A,'
+                                 'age:Youngest first,'
+                                 '-age:Oldest first')
+
+class ToolbarEmployeeBigThumbnailsListing(ToolbarEmployeeThumbnailsListing):
+    div_template_name = 'demo/big_thumbnails.html'
+    per_page = 9
+    toolbar_perpageselect__choices = '9,18,27,-1:All' #overrides ToolbarListing.toolbar PerPageSelectToolbarItem choices attribute
+    theme_div_row_container_class = 'big-thumbnail'
+
+
+class ToolbarListing(ListingVariations):
+    variations_classes = (
+        ToolbarSimpleListing,
+        ToolbarEmployeeDivListing,
+        ToolbarEmployeeThumbnailsListing,
+        ToolbarEmployeeBigThumbnailsListing,
+    )
+    toolbar = Toolbar(
+        ExportSelectToolbarItem(),
+        SortSelectToolbarItem(),
+        VariationsToolbarItem(
+            labels=('Listing', 'Detailed', 'Thumbnails', 'Big thumbnails'),
+            icons=('listing-icon-menu-2', 'listing-icon-th-list-4',
+                   'listing-icon-th-3', 'listing-icon-th-large-2')),
+        PerPageSelectToolbarItem(choices='8,16,32,64,-1:All'),
+    )
+    toolbar_placement = 'both'
+    per_page = 8
+    paginator_has_first_last = True
+    exclude_columns = 'interests'
+
+
+class ToolbarListingView(ListingView):
+    template_name = 'polls/toolbar.html'
+    context_classes = (ToolbarListing,
+                       ToolbarSimpleListing,
+                       Choice,
+                       )
+
+
+class BasicUsageListingView(TemplateView):
+    template_name = 'polls/toolbar.html'
+    extra_context = dict(employees_as_model=Choice)
 
